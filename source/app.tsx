@@ -1085,10 +1085,29 @@ function ShellToolRenderer({ item }: { item: ToolSchemaFrom<typeof shell> }) {
 
 function ReadToolRenderer({ item }: { item: ToolSchemaFrom<typeof read> }) {
   const themeColor = useColor();
+  const offset = item.arguments.offset;
+  const limit = item.arguments.limit;
+
+  const lineRange = (() => {
+    if (offset === undefined && limit === undefined) {
+      return null;
+    }
+
+    const start = offset || 1;
+    const end = limit !== undefined ? start + limit - 1 : undefined;
+
+    if (end !== undefined) {
+      return ` (lines: ${start}-${end})`;
+    } else {
+      return ` (lines: ${start}+)`;
+    }
+  })();
+
   return (
     <Box>
       <Text color="gray">{item.name}: </Text>
       <Text color={themeColor}>{item.arguments.filePath}</Text>
+      {lineRange !== null && <Text color="gray">{lineRange}</Text>}
     </Box>
   );
 }
