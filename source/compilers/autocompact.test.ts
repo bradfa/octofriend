@@ -15,6 +15,7 @@ function assistantMessage(content: string, tokenUsage: number = 10): LlmIR {
     content,
     tokenUsage,
     outputTokens: tokenUsage,
+    inputTokens: 0,
   };
 }
 

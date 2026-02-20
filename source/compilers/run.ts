@@ -6,6 +6,7 @@ import { LlmIR } from "../ir/llm-ir.ts";
 import { findMostRecentCompactionCheckpointIndex } from "./autocompact.ts";
 import { JsonFixResponse } from "../prompts/autofix-prompts.ts";
 import { LoadedTools } from "../tools/index.ts";
+import { PerformanceTracker } from "../timing-tracker.ts";
 
 export async function run({
   model,
@@ -16,6 +17,7 @@ export async function run({
   abortSignal,
   systemPrompt,
   tools,
+  performanceTracker,
 }: {
   apiKey: string;
   model: ModelConfig;
@@ -28,6 +30,7 @@ export async function run({
   abortSignal: AbortSignal;
   systemPrompt?: () => Promise<string>;
   tools?: Partial<LoadedTools>;
+  performanceTracker?: PerformanceTracker;
 }) {
   const runInternal = (() => {
     if (model.type == null || model.type === "standard") return runAgent;
@@ -39,18 +42,26 @@ export async function run({
   const checkpointIndex = findMostRecentCompactionCheckpointIndex(messages);
   const slicedMessages = messages.slice(checkpointIndex);
 
+  const onTokens = performanceTracker
+    ? (t: string, type: "reasoning" | "content" | "tool") => {
+        performanceTracker.onToken(t, type);
+        return handlers.onTokens(t, type);
+      }
+    : handlers.onTokens;
+
   return await runInternal({
     model,
     apiKey,
     abortSignal,
     systemPrompt,
     irs: slicedMessages,
-    onTokens: handlers.onTokens,
+    onTokens,
     autofixJson: (badJson: string, signal: AbortSignal) => {
       const fixPromise = autofixJson(badJson, signal);
       handlers.onAutofixJson(fixPromise.then(() => {}));
       return fixPromise;
     },
     tools,
+    performanceTracker,
   });
 }

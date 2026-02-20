@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { t, toJSONSchema, toTypescript } from "structural";
 import { Compiler } from "./compiler-interface.ts";
 import { StreamingXMLParser, tagged } from "../xml.ts";
+import { PerformanceTracker } from "../timing-tracker.ts";
 import {
   LlmIR,
   AssistantMessage as AssistantIR,
@@ -269,6 +270,7 @@ export const runAgent: Compiler = async ({
   systemPrompt,
   autofixJson,
   tools,
+  performanceTracker,
 }) => {
   const messages = await toLlmMessages(irs, systemPrompt);
 
@@ -438,6 +440,8 @@ export const runAgent: Compiler = async ({
     // Make sure to close the parser to flush any remaining data
     xmlParser.close();
 
+    performanceTracker?.end();
+
     // Calculate token usage delta from the previous total
     let tokenDelta = 0;
     if (usage.input !== 0 || usage.output !== 0) {
@@ -455,6 +459,7 @@ export const runAgent: Compiler = async ({
       reasoningContent,
       tokenUsage: tokenDelta,
       outputTokens: usage.output,
+      inputTokens: usage.input,
     };
 
     // If aborted, don't try to parse tool calls - just return the assistant response

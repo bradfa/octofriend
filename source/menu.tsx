@@ -328,11 +328,19 @@ function filterSettings(config: Config) {
 }
 
 function MainMenu() {
-  const { toggleMenu, notify, resetPreMenuVimMode } = useAppStore(
+  const {
+    toggleMenu,
+    notify,
+    resetPreMenuVimMode,
+    performanceStatsEnabled,
+    togglePerformanceStats,
+  } = useAppStore(
     useShallow(state => ({
       toggleMenu: state.toggleMenu,
       notify: state.notify,
       resetPreMenuVimMode: state.resetPreMenuVimMode,
+      performanceStatsEnabled: state.performanceStatsEnabled,
+      togglePerformanceStats: state.togglePerformanceStats,
     })),
   );
 
@@ -349,6 +357,12 @@ function MainMenu() {
     if (key.escape) toggleMenu();
   });
 
+  const handleTogglePerformanceStats = useCallback(() => {
+    togglePerformanceStats();
+    toggleMenu();
+    notify(`Performance stats ${performanceStatsEnabled ? "disabled" : "enabled"}`);
+  }, [togglePerformanceStats, toggleMenu, notify, performanceStatsEnabled]);
+
   type Value =
     | "model-select"
     | "add-model"
@@ -357,6 +371,7 @@ function MainMenu() {
     | "quit"
     | "fix-json-toggle"
     | "diff-apply-toggle"
+    | "performance-stats-toggle"
     | "settings-menu"
     | "clear-confirm";
 
@@ -368,6 +383,10 @@ function MainMenu() {
     n: {
       label: "+ Add a new model",
       value: "add-model" as const,
+    },
+    p: {
+      label: performanceStatsEnabled ? "- Disable performance stats" : "+ Enable performance stats",
+      value: "performance-stats-toggle" as const,
     },
     o: {
       label: "✕ New conversation",
@@ -439,6 +458,7 @@ function MainMenu() {
     async (item: Item<Value>) => {
       if (item.value === "return") toggleMenu();
       else if (item.value === "quit") setMenuMode("quit-confirm");
+      else if (item.value === "performance-stats-toggle") handleTogglePerformanceStats();
       else if (item.value === "vim-toggle") {
         const wasEnabled = config.vimEmulation?.["enabled"] ?? false;
 

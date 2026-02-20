@@ -11,10 +11,12 @@ import {
   AssistantItem,
   UserItem,
   CompactionCheckpointItem,
+  PerformanceStatsItem,
   sequenceId,
 } from "../history.ts";
 
 import { AssistantMessage, LlmIR, ToolCallRequest, TrajectoryOutputIR } from "./llm-ir.ts";
+import { formatPerformanceStats } from "../timing-tracker.ts";
 
 // Filter out only relevant history items to the LLM IR
 type LoweredHistory =
@@ -98,6 +100,21 @@ function singleOutputDecompile(output: TrajectoryOutputIR): HistoryItem[] {
     ];
   }
 
+  if (output.role === "performance-stats") {
+    return [
+      {
+        type: "performance-stats",
+        id: sequenceId(),
+        stats: formatPerformanceStats({
+          inputTokens: output.inputTokens,
+          outputTokens: output.outputTokens,
+          ttft: output.ttft,
+          tokPerSec: output.tokPerSec,
+        }),
+      },
+    ];
+  }
+
   const history: HistoryItem[] = [];
   const reasoningContent: { reasoningContent?: string } = {};
   if (output.reasoningContent) reasoningContent.reasoningContent = output.reasoningContent;
@@ -111,6 +128,8 @@ function singleOutputDecompile(output: TrajectoryOutputIR): HistoryItem[] {
     anthropic: output.anthropic,
     tokenUsage: output.tokenUsage,
     outputTokens: output.outputTokens,
+    inputTokens: output.inputTokens,
+    reasoningTokens: output.reasoningTokens,
   });
 
   if (output.toolCall) {
@@ -154,7 +173,8 @@ function lowerItem(item: HistoryItem): LoweredHistory | null {
   if (
     item.type !== "request-failed" &&
     item.type !== "compaction-failed" &&
-    item.type !== "notification"
+    item.type !== "notification" &&
+    item.type !== "performance-stats"
   )
     return item;
   return null;
@@ -184,6 +204,8 @@ function collapseToIR(prev: LlmIR | null, item: LoweredHistory): [LlmIR | null, 
           reasoningContent: prev.reasoningContent,
           tokenUsage: prev.tokenUsage,
           outputTokens: prev.outputTokens,
+          inputTokens: prev.inputTokens,
+          reasoningTokens: prev.reasoningTokens,
         },
         null,
       ];
@@ -215,6 +237,8 @@ function collapseToIR(prev: LlmIR | null, item: LoweredHistory): [LlmIR | null, 
             reasoningContent: prev.reasoningContent,
             tokenUsage: prev.tokenUsage,
             outputTokens: prev.outputTokens,
+            inputTokens: prev.inputTokens,
+            reasoningTokens: prev.reasoningTokens,
           } satisfies LlmIR,
           {
             role: "tool-malformed",
@@ -347,6 +371,8 @@ function collapseToIR(prev: LlmIR | null, item: LoweredHistory): [LlmIR | null, 
         anthropic: item.anthropic,
         tokenUsage: item.tokenUsage,
         outputTokens: item.outputTokens,
+        inputTokens: item.inputTokens,
+        reasoningTokens: item.reasoningTokens,
       },
     ];
   }

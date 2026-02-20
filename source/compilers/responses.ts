@@ -11,6 +11,7 @@ import { errorToString } from "../errors.ts";
 import { compactionCompilerExplanation } from "./autocompact.ts";
 import { JsonFixResponse } from "../prompts/autofix-prompts.ts";
 import * as irPrompts from "../prompts/ir-prompts.ts";
+import { PerformanceTracker } from "../timing-tracker.ts";
 
 async function toModelMessage(
   messages: LlmIR[],
@@ -260,6 +261,7 @@ export const runResponsesAgent: Compiler = async ({
   systemPrompt,
   autofixJson,
   tools,
+  performanceTracker,
 }) => {
   const messages = await toModelMessage(irs, systemPrompt);
 
@@ -384,6 +386,8 @@ export const runResponsesAgent: Compiler = async ({
       }
     }
 
+    performanceTracker?.end();
+
     // Track usage
     if (usage.input !== 0 || usage.output !== 0) {
       trackTokens(model.model, "input", usage.input);
@@ -411,6 +415,8 @@ export const runResponsesAgent: Compiler = async ({
       ...openaiSpecific,
       tokenUsage: tokenDelta,
       outputTokens: usage.output,
+      inputTokens: usage.input,
+      reasoningTokens: usage.reasoning > 0 ? usage.reasoning : undefined,
     };
 
     // If aborted, don't try to parse tool calls

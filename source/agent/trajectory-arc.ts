@@ -11,6 +11,7 @@ import { systemPrompt } from "../prompts/system-prompt.ts";
 import { makeAutofixJson } from "../compilers/autofix.ts";
 import { JsonFixResponse } from "../prompts/autofix-prompts.ts";
 import { loadTools } from "../tools/index.ts";
+import { PerformanceTracker, type PerformanceStats } from "../timing-tracker.ts";
 
 type AllTokenTypes = "reasoning" | "content" | "tool";
 
@@ -56,6 +57,7 @@ export type AnyState = keyof StateEvents;
 type Finish = {
   type: "finish";
   irs: TrajectoryOutputIR[];
+  performanceStats?: PerformanceStats;
   reason:
     | {
         type: "abort";
@@ -74,6 +76,10 @@ type Finish = {
       };
 };
 
+function filterTrajectoryToLlm(irs: TrajectoryOutputIR[]): LlmIR[] {
+  return irs.filter(ir => ir.role !== "performance-stats") as LlmIR[];
+}
+
 /*
  * Given some LLM IR, it runs the next arc of the trajectory until one of the finish reasons defined
  * above is hit.
@@ -86,6 +92,7 @@ export async function trajectoryArc({
   transport,
   abortSignal,
   handler,
+  performanceStatsEnabled,
 }: {
   apiKey: string;
   model: ModelConfig;
@@ -96,6 +103,7 @@ export async function trajectoryArc({
   handler: {
     [K in AnyState]: (state: StateEvents[K]) => void;
   };
+  performanceStatsEnabled: boolean;
 }): Promise<Finish> {
   if (abortSignal.aborted) return abort([]);
 
@@ -126,6 +134,7 @@ export async function trajectoryArc({
   handler.startResponse(null);
 
   let buffer: AssistantBuffer<AllTokenTypes> = {};
+  const performanceTracker = performanceStatsEnabled ? new PerformanceTracker() : undefined;
   const result = await run({
     apiKey,
     model,
@@ -133,6 +142,7 @@ export async function trajectoryArc({
     abortSignal,
     tools,
     messages: messagesCopy,
+    performanceTracker,
     handlers: {
       onTokens: (tokens, type) => {
         if (!buffer[type]) buffer[type] = "";
@@ -166,6 +176,7 @@ export async function trajectoryArc({
           reasoningContent: buffer.reasoning,
           tokenUsage: 0,
           outputTokens: 0,
+          inputTokens: 0,
         },
       ];
     }
@@ -199,6 +210,17 @@ export async function trajectoryArc({
   }
 
   irs = [...irs, ...result.output];
+
+  let stats: PerformanceStats | undefined;
+  if (performanceTracker && result.output.length > 0) {
+    const assistantOutput = result.output[0];
+    if (assistantOutput.role === "assistant") {
+      stats =
+        performanceTracker.getStats(assistantOutput.inputTokens, assistantOutput.outputTokens) ??
+        undefined;
+    }
+  }
+
   let lastIr = result.output[result.output.length - 1];
 
   // Retry malformed tool calls
@@ -210,7 +232,8 @@ export async function trajectoryArc({
       config,
       transport,
       abortSignal,
-      messages: messagesCopy.concat(irs),
+      performanceStatsEnabled,
+      messages: messagesCopy.concat(filterTrajectoryToLlm(irs)),
       handler,
     });
 
@@ -259,7 +282,8 @@ export async function trajectoryArc({
         config,
         transport,
         abortSignal,
-        messages: messagesCopy.concat(retryIrs),
+        performanceStatsEnabled,
+        messages: messagesCopy.concat(filterTrajectoryToLlm(retryIrs)),
         handler,
       });
       return {
@@ -338,7 +362,8 @@ export async function trajectoryArc({
       config,
       transport,
       abortSignal,
-      messages: messagesCopy.concat(retryIrs),
+      performanceStatsEnabled,
+      messages: messagesCopy.concat(filterTrajectoryToLlm(retryIrs)),
       handler,
     });
     return {

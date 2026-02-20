@@ -65,6 +65,8 @@ export type AssistantItem = SequenceIdTagged<{
   anthropic?: AnthropicAssistantData;
   tokenUsage: number; // Delta token usage from previous message
   outputTokens: number;
+  inputTokens: number;
+  reasoningTokens?: number;
 }>;
 
 export type UserItem = SequenceIdTagged<{
@@ -90,6 +92,11 @@ export type CompactionCheckpointItem = SequenceIdTagged<{
   summary: string;
 }>;
 
+export type PerformanceStatsItem = SequenceIdTagged<{
+  type: "performance-stats";
+  stats: string;
+}>;
+
 export type HistoryItem =
   | UserItem
   | AssistantItem
@@ -103,7 +110,8 @@ export type HistoryItem =
   | RequestFailed
   | CompactionFailed
   | Notification
-  | CompactionCheckpointItem;
+  | CompactionCheckpointItem
+  | PerformanceStatsItem;
 
 let monotonicGuid = 0n;
 export function sequenceId() {

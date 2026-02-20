@@ -11,6 +11,7 @@ import { Text, Box, Static, measureElement, DOMElement, useInput, useApp } from 
 import clipboardy from "clipboardy";
 import { InputWithHistory } from "./components/input-with-history.tsx";
 import { t } from "structural";
+import { sequenceId } from "./history.ts";
 import {
   Config,
   Metadata,
@@ -932,6 +933,14 @@ const MessageDisplayInner = React.memo(({ item }: { item: HistoryItem | Inflight
 
   if (item.type === "compaction-checkpoint") {
     return <CompactionSummaryRenderer summary={item.summary} />;
+  }
+
+  if (item.type === "performance-stats") {
+    return (
+      <Box marginBottom={1}>
+        <Text color="gray">{item.stats}</Text>
+      </Box>
+    );
   }
 
   const _: "user" = item.type;

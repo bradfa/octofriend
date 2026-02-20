@@ -4,6 +4,7 @@ import {
   UserItem,
   AssistantItem,
   CompactionCheckpointItem,
+  PerformanceStatsItem,
   sequenceId,
 } from "./history.ts";
 import { runTool, ToolError } from "./tools/index.ts";
@@ -18,13 +19,17 @@ import { trajectoryArc } from "./agent/trajectory-arc.ts";
 import { ToolCallRequest } from "./ir/llm-ir.ts";
 import { throttledBuffer } from "./throttled-buffer.ts";
 import { loadTools } from "./tools/index.ts";
+import { formatPerformanceStats } from "./timing-tracker.ts";
 
 export type RunArgs = {
   config: Config;
   transport: Transport;
 };
 
-export type InflightResponseType = Omit<AssistantItem, "id" | "tokenUsage" | "outputTokens">;
+export type InflightResponseType = Omit<
+  AssistantItem,
+  "id" | "tokenUsage" | "outputTokens" | "inputTokens" | "reasoningTokens"
+>;
 export type UiState = {
   preMenuVimMode: "NORMAL" | "INSERT" | null;
   modeData:
@@ -89,6 +94,7 @@ export type UiState = {
   clearNonce: number;
   lastUserPromptId: bigint | null;
   whitelist: Set<string>;
+  performanceStatsEnabled: boolean;
   input: (args: RunArgs & { query: string }) => Promise<void>;
   runTool: (args: RunArgs & { toolReq: ToolCallRequest }) => Promise<void>;
   rejectTool: (toolCallId: string) => void;
@@ -111,6 +117,7 @@ export type UiState = {
   clearHistory: () => void;
   _maybeHandleAbort: (signal: AbortSignal) => boolean;
   _runAgent: (args: RunArgs) => Promise<void>;
+  togglePerformanceStats: () => void;
 };
 
 export const useAppStore = create<UiState>((set, get) => ({
@@ -126,6 +133,7 @@ export const useAppStore = create<UiState>((set, get) => ({
   clearNonce: 0,
   lastUserPromptId: null,
   whitelist: new Set<string>(),
+  performanceStatsEnabled: false,
 
   input: async ({ config, query, transport }) => {
     const userMessage: UserItem = {
@@ -366,6 +374,7 @@ export const useAppStore = create<UiState>((set, get) => ({
     let responseByteCount = 0;
     const model = getModelFromConfig(config, get().modelOverride);
     const apiKey = await assertKeyForModel(model, config);
+    const performanceStatsEnabled = get().performanceStatsEnabled;
 
     const throttle = throttledBuffer<Partial<Parameters<typeof set>[0]>>(200, set);
 
@@ -377,6 +386,7 @@ export const useAppStore = create<UiState>((set, get) => ({
         config,
         transport,
         abortSignal: abortController.signal,
+        performanceStatsEnabled,
         handler: {
           startResponse: () => {
             throttle.flush();
@@ -402,6 +412,7 @@ export const useAppStore = create<UiState>((set, get) => ({
                   type: "assistant",
                   reasoningContent: event.buffer.reasoning,
                   content: event.buffer.content || "",
+                  inputTokens: 0,
                 },
                 abortController,
               },
@@ -433,6 +444,7 @@ export const useAppStore = create<UiState>((set, get) => ({
                   type: "assistant",
                   reasoningContent: event.buffer.reasoning,
                   content: event.buffer.content || "",
+                  inputTokens: 0,
                 },
                 abortController,
               },
@@ -478,6 +490,16 @@ export const useAppStore = create<UiState>((set, get) => ({
       });
       throttle.flush();
       historyCopy.push(...outputToHistory(finish.irs));
+
+      // Add performance stats at the end if they exist
+      if (finish.performanceStats) {
+        historyCopy.push({
+          type: "performance-stats",
+          id: sequenceId(),
+          stats: formatPerformanceStats(finish.performanceStats),
+        });
+      }
+
       set({ history: [...historyCopy] });
       const finishReason = finish.reason;
       if (finishReason.type === "abort" || finishReason.type === "needs-response") {
@@ -536,6 +558,10 @@ export const useAppStore = create<UiState>((set, get) => ({
     } finally {
       set({ byteCount: 0 });
     }
+  },
+
+  togglePerformanceStats: () => {
+    set(state => ({ performanceStatsEnabled: !state.performanceStatsEnabled }));
   },
 }));
 

@@ -30,8 +30,10 @@ export type AssistantMessage = {
   };
   anthropic?: AnthropicAssistantData;
   toolCall?: ToolCallRequest;
-  tokenUsage: number;
+  tokenUsage: number; // Delta token usage from previous message
   outputTokens: number;
+  inputTokens: number;
+  reasoningTokens?: number;
 };
 
 export type UserMessage = {
@@ -97,6 +99,14 @@ export type CompactionCheckpoint = {
   summary: string;
 };
 
+export type PerformanceStatsIR = {
+  role: "performance-stats";
+  inputTokens: number;
+  outputTokens: number;
+  ttft: number;
+  tokPerSec: number;
+};
+
 export type OutputIR = AssistantMessage | ToolMalformedMessage;
 
 export type InputIR =
@@ -106,6 +116,7 @@ export type InputIR =
   | FileMutateMethod
   | ToolRejectMessage
   | ToolErrorMessage
+  | ToolMalformedMessage
   | FileOutdatedMessage
   | FileUnreadableMessage
   | CompactionCheckpoint;
@@ -117,7 +128,8 @@ export type TrajectoryOutputIR =
   | ToolErrorMessage
   | FileOutdatedMessage
   | FileUnreadableMessage
-  | CompactionCheckpoint;
+  | CompactionCheckpoint
+  | PerformanceStatsIR;
 
 export type AgentResult =
   | {

@@ -10,6 +10,7 @@ import { errorToString } from "../errors.ts";
 import { compactionCompilerExplanation } from "./autocompact.ts";
 import { JsonFixResponse } from "../prompts/autofix-prompts.ts";
 import * as irPrompts from "../prompts/ir-prompts.ts";
+import { PerformanceTracker } from "../timing-tracker.ts";
 
 const ThinkingBlockSchema = t.subtype({
   type: t.value("thinking"),
@@ -208,6 +209,7 @@ export const runAnthropicAgent: Compiler = async ({
   systemPrompt,
   autofixJson,
   tools,
+  performanceTracker,
 }) => {
   const messages = toModelMessage(irs);
   const sysPrompt = systemPrompt ? await systemPrompt() : "";
@@ -404,6 +406,8 @@ export const runAnthropicAgent: Compiler = async ({
       }
     }
 
+    performanceTracker?.end();
+
     // Track usage
     if (usage.input !== 0 || usage.output !== 0) {
       trackTokens(model.model, "input", usage.input);
@@ -440,6 +444,7 @@ export const runAnthropicAgent: Compiler = async ({
       ...anthropic,
       tokenUsage: tokenDelta,
       outputTokens: usage.output,
+      inputTokens: usage.input,
     };
 
     // If aborted, don't try to parse tool calls
