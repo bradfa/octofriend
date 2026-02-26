@@ -41,6 +41,13 @@ function validatePattern(pattern: string): void {
   }
 }
 
+function validateType(type: string): void {
+  const validTypes = new Set(["f", "d", "l"]);
+  if (!validTypes.has(type)) {
+    throw new ToolError("Invalid file type - must be f (file), d (directory), or l (symlink)");
+  }
+}
+
 export default defineTool<t.GetType<typeof Schema>>(async () => ({
   Schema,
   ArgumentsSchema,
@@ -49,6 +56,7 @@ export default defineTool<t.GetType<typeof Schema>>(async () => ({
     const args = call.arguments || {};
     validateRelativePath(args["dirPath"]);
     if (args["pattern"]) validatePattern(args["pattern"]);
+    if (args["type"]) validateType(args["type"]);
 
     const searchPath = args["dirPath"] || ".";
     const maxDepth = args["maxDepth"] || 5;
