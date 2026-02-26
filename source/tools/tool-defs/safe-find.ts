@@ -64,12 +64,18 @@ export default defineTool<t.GetType<typeof Schema>>(async () => ({
 
     const cmdParts = ["find", searchPath, "-xdev", "-maxdepth", String(maxDepth)];
 
-    if (args["pattern"]) cmdParts.push("-name", `'${args["pattern"]}'`);
-    if (args["type"]) cmdParts.push("-type", args["type"]);
+    if (args["pattern"]) {
+      cmdParts.push("-name", args["pattern"]);
+    }
+    if (args["type"]) {
+      cmdParts.push("-type", args["type"]);
+    }
 
     cmdParts.push("-print0");
 
-    const output = await transport.shell(abortSignal, cmdParts.join(" "), 15000);
+    const cmd = cmdParts.map(arg => `'${arg}'`).join(" ");
+
+    const output = await transport.shell(abortSignal, cmd, 15000);
 
     const results = output
       .split("\0")
