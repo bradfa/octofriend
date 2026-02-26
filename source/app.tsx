@@ -37,6 +37,7 @@ import mcp from "./tools/tool-defs/mcp.ts";
 import fetchTool from "./tools/tool-defs/fetch.ts";
 import skill from "./tools/tool-defs/skill.ts";
 import webSearch from "./tools/tool-defs/web-search.ts";
+import safeFind from "./tools/tool-defs/safe-find.ts";
 import { ALWAYS_REQUEST_PERMISSION_TOOLS, SKIP_CONFIRMATION_TOOLS } from "./tools/index.ts";
 import { ArgumentsSchema as EditArgumentSchema } from "./tools/tool-defs/edit.ts";
 import { ToolSchemaFrom } from "./tools/common.ts";
@@ -694,6 +695,8 @@ function ToolRequestRenderer({
         return `${fn.name}:${fn.arguments.server}:${fn.arguments.tool}`;
       case "web-search":
         return `${fn.name}:*`;
+      case "safe-find":
+        return `${fn.name}:*`;
     }
   })();
   const prompt = (() => {
@@ -725,6 +728,7 @@ function ToolRequestRenderer({
       case "list":
       case "mcp":
       case "web-search":
+      case "safe-find":
         return null;
     }
   })();
@@ -1012,6 +1016,8 @@ function ToolMessageRenderer({ item }: { item: ToolCallItem }) {
       return <SkillToolRenderer item={item.tool.function} />;
     case "web-search":
       return <WebSearchToolRenderer item={item.tool.function} />;
+    case "safe-find":
+      return <SafeFindToolRenderer item={item.tool.function} />;
   }
 }
 
@@ -1021,6 +1027,47 @@ function WebSearchToolRenderer(_: { item: ToolSchemaFrom<typeof webSearch> }) {
       <Text color="gray">Octo searched the web</Text>
     </Box>
   );
+}
+
+function SafeFindToolRenderer({ item }: { item: ToolSchemaFrom<typeof safeFind> }) {
+  const parts: React.ReactNode[] = [
+    <Text key="base" color="gray">
+      Octo searched for files
+    </Text>,
+  ];
+
+  if (item.arguments.pattern) {
+    parts.push(
+      <Text key="pattern">
+        <Text color="gray"> matching pattern </Text>
+        <Text color="yellow">{item.arguments.pattern}</Text>
+      </Text>,
+    );
+  }
+
+  if (item.arguments.type) {
+    const typeLabels: Record<string, string> = {
+      f: "regular files",
+      d: "directories",
+      l: "symbolic links",
+    };
+    parts.push(
+      <Text key="type">
+        <Text color="gray"> ({typeLabels[item.arguments.type] || item.arguments.type})</Text>
+      </Text>,
+    );
+  }
+
+  if (item.arguments.dirPath && item.arguments.dirPath !== ".") {
+    parts.push(
+      <Text key="dir">
+        <Text color="gray"> in </Text>
+        <Text color="yellow">{item.arguments.dirPath}</Text>
+      </Text>,
+    );
+  }
+
+  return <Box>{parts}</Box>;
 }
 
 function SkillToolRenderer({ item }: { item: ToolSchemaFrom<typeof skill> }) {
@@ -1200,6 +1247,14 @@ function WhitelistAllowDescription({ toolCallRequest }: { toolCallRequest: ToolC
     }
     case "web-search": {
       return <Text> Web Searches during this session.</Text>;
+    }
+    case "safe-find": {
+      return (
+        <Text>
+          <Text> file searches in </Text>
+          <Text bold>{cwd}</Text>
+        </Text>
+      );
     }
     case "list":
     case "read": {

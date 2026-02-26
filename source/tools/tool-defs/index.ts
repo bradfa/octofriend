@@ -10,6 +10,7 @@ import prepend from "./prepend.ts";
 import rewrite from "./rewrite.ts";
 import skill from "./skill.ts";
 import webSearch from "./web-search.ts";
+import safeFind from "./safe-find.ts";
 
 export default {
   read,
@@ -24,4 +25,5 @@ export default {
   rewrite,
   skill,
   "web-search": webSearch,
+  "safe-find": safeFind,
 };
